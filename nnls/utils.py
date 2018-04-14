@@ -33,4 +33,4 @@ def solve_lsqr(A, b):
     if sp.issparse(A):
         return sp_linalg.lsqr(A, b)[0]
 
-    return linalg.lsqr(A, b)[0]
+    return linalg.lstsq(A, b)[0]

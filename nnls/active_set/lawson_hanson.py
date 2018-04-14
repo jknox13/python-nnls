@@ -44,14 +44,12 @@ def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
     n, m = A.shape
 
     # compute gram matrix
-    Q = A.T.dot(A)
-    c = A.T.dot(b)
+    #Q = A.T.dot(A)
+    #c = A.T.dot(b)
 
     # initialize
     n_iter = 0
-    k = 0
     x = np.zeros(m)
-    r = c.copy()
 
     # use boolean arrays
     active_set = np.ones(m, dtype=np.bool)
@@ -61,8 +59,9 @@ def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
         # compute negative gradient
         w = A.T.dot(b - A.dot(x))
 
-        if not active_set and n_iter >= maxiter and w[active_set].max() > tol:
+        if not active_set.any() and n_iter >= maxiter and w[active_set].max() > tol:
             # return solution
+            print('break')
             break
 
         # update sets with minimum index of gradient (max of -grad)
@@ -75,7 +74,8 @@ def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
             passive_list = list(passive_set)
 
             # compute least squares solution A[:, P]y = b
-            y = solve_lsqr(A[:, passive_list], b)
+            y = np.zeros(m)
+            y[passive_list] = solve_lsqr(A[:, passive_list], b)
 
             if y.min() <= tol:
                 alpha = x[passive_list] / (x[passive_list] - y)
