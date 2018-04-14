@@ -2,15 +2,16 @@
 Lawson-Hanson algorithm for computing the nonnegative least squares solution.
 """
 
-from __future__ import division
+# Authors: Joseph Knox <joseph.edward.knox@gmail.com>
+# License: BSD 3
 
+from __future__ import division
 import numpy as np
 
-from ..solvers import solve_lsqr
+from ..utils import solve_lsqr
 
-# TODO : boolean arrays
 
-def lawson_hanson(A, b, tol=1e-3, maxiter=np.inf):
+def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
     """Lawson-Hanson algorithm for computing the nonnegative least squares solution.
 
     The Lawson-Hanson algorithm modifies the active set by one element in each
@@ -20,10 +21,11 @@ def lawson_hanson(A, b, tol=1e-3, maxiter=np.inf):
     In general no upper bound on iterations. Worst case : 2^p (all possible
     subsets)
 
+    .. note:: This algorithm can be drastically improved by keeping track
+       of the candidates and/or using qr updating
+
     MATLAB package :: lsqnonneg
 
-    use Martin Slawski's rank-one-updates of Cholesky/QR to reduce complexity
-    from O(|S|^3) to O(|S|^2) (also in ref [47])
 
     Parameters
     ----------
@@ -37,7 +39,7 @@ def lawson_hanson(A, b, tol=1e-3, maxiter=np.inf):
     References
     ----------
     [37]
-    Algorithm : [12]
+    Cholesky updates : [47]
     """
     n, m = A.shape
 
@@ -50,48 +52,49 @@ def lawson_hanson(A, b, tol=1e-3, maxiter=np.inf):
     k = 0
     x = np.zeros(m)
     r = c.copy()
-    active_set = list(range(m))
-    passive_set = []
 
-    while active_set and n_iter < maxiter:
-        #k += 1
+    # use boolean arrays
+    active_set = np.ones(m, dtype=np.bool)
+    passive_set = np.zeros(m, dtype=np.bool)
 
-        w = A.T.dot(r)[active_set]
-        if w > tol:
+    while True:
+        # compute negative gradient
+        w = A.T.dot(b - A.dot(x))
+
+        if not active_set and n_iter >= maxiter and w[active_set].max() > tol:
+            # return solution
             break
 
-        # update sets
-        j = np.argmax(w)
-        active_set.remove(j)
-        passive_set.append(j)
+        # update sets with minimum index of gradient (max of -grad)
+        j = np.argmax(w[active_set])
+        active_set[j] = 0
+        passive_set[j] = 1
 
-        # TODO: incorp cholesky updates
-        x_new = np.zeros(m)
-        x_new[passive_set] = solve_lsqr(A[passive_set], b)
+        while True:
+            # make list so that we can index
+            passive_list = list(passive_set)
 
-        while np.any(x_new <= tol):
-            # remove elements elements which no longer belong
-            q_set = list(set(np.where(x_new <= tol)[0]) and set(passive_set))
+            # compute least squares solution A[:, P]y = b
+            y = solve_lsqr(A[:, passive_list], b)
 
-            alpha = np.zeros(m)
-            alpha[q_set] = x[q_set] / (x[q_set] - x_new[q_set])
+            if y.min() <= tol:
+                alpha = x[passive_list] / (x[passive_list] - y)
 
-            alpha = alpha[alpha.nonzero()].min()
+                # update feasibility vector
+                x += alpha*(y - x)
 
-            x = x + alpha*(x_new - x)
+                # move all zero indices of x from passive to active
+                nonzero_x = x.nonzero()[0]
+                active_set[nonzero_x] = 1
+                passive_set[nonzero_x] = 0
 
-
-
-
-
-            # TODO: incorp cholesky updates
-
-
-
-
+            else:
+                # update feasibility vector
+                x = y
+                break
 
         # update iter count
         n_iter += 1
 
-
-
+    # return solution
+    return x
