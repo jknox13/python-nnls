@@ -1,3 +1,10 @@
+# temporary files
+*.swp
+*.swo
+
+# Lock file for dev
+Pipfile.lock
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
