@@ -1,5 +1,5 @@
 """
-Least squares solvers
+Utility functions
 """
 
 import numpy as np
