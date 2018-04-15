@@ -4,7 +4,23 @@ import scipy.sparse as sp
 import numpy as np
 from numpy.testing import assert_array_almost_equal
 
-from nnls import lawson_hanson
+from nnls import block_pivoting, lawson_hanson
+
+
+def test_block_pivoting():
+    # design matrix size (square)
+    n = 100
+
+    # ------------------------------------------------------------------------
+    # test same output as scipy.nnls
+    # A is the n  x n Hilbert matrix
+    A = 1. / (np.arange(1, n + 1) + np.arange(n)[:, np.newaxis])
+    b = np.ones(n)
+
+    scipy_sol = sopt.nnls(A, b)[0]
+    bp_sol = block_pivoting(A, b)
+
+    assert_array_almost_equal(scipy_sol, bp_sol)
 
 
 def test_lawson_hanson():
