@@ -6,12 +6,13 @@ Active-set algorithms for computing the nonnegative least squares solution.
 # License: BSD 3
 
 from __future__ import division
+import warnings
 import numpy as np
 
-from .utils import solve_lsqr
+from .utils import matrix_rank, solve_lsqr
 
 
-def block_pivoting(A, b, k_iter=10, tol=1e-8, max_iter=10000):
+def block_pivoting(A, b, max_k_iter=5, tol=1e-8, max_iter=10000):
     """Block pivoting algorithm for computing the nonnegative least squares solution.
 
     Unlike in Lawson-Hanson and LARS, block pivoting changes multiple elements
@@ -20,7 +21,6 @@ def block_pivoting(A, b, k_iter=10, tol=1e-8, max_iter=10000):
     general feasible. Thus, block pivoting performs well for smaller scale,
     well conditioned problems.
 
-    Will raise warning if A is not full rank.
 
     Parameters
     ----------
@@ -28,74 +28,74 @@ def block_pivoting(A, b, k_iter=10, tol=1e-8, max_iter=10000):
 
     b
 
-    Examples
-    --------
+    max_k_iter:
+        backup rule
+
 
     References
     ----------
     [37]
     [57]
     """
+    # method only valid for full rank design matrices
+    if matrix_rank(A) < A.shape[1]:
+        warnings.warn('A does not have full column rank! block_pivoting is '
+                      'only reliable for matrices with full column rank')
+
     m = A.shape[1]
 
     # initialize
     n_iter = 0
-    k = k_iter
+    k = max_k_iter
+    n_infeasible = m + 1
+    active_set = np.ones(m, dtype=np.bool)
     x = np.zeros(m)
     y = -A.T.dot(b)
 
-    active_set = np.ones(m, dtype=np.bool)
-    n_inf = m + 1
+    while True:
+        if n_iter >= max_iter:
+            warnings.warn('Max iterations reached: did not converge')
 
-    while n_inf > 0 and n_iter < max_iter:
+        # get infeasible set
+        infeasible = np.append((x < 0).nonzero()[0], (y < 0).nonzero()[0])
 
-        # compute gradient
-        y = A.T.dot(A.dot(x) - b)
+        if infeasible.size == 0:
+            # solution feasible; return result
+            break
 
-        # get infeasible sets
-        x_inf = x[active_set] < 0
-        y_inf = y[~active_set] < 0
+        if k >= 1:
+            # update according to Kostreva's
+            invert = infeasible
 
-        sum_inf = x_inf.sum() + y_inf.sum()
+            if infeasible.size < n_infeasible:
+                # update previous infesible cardinality
+                n_infeasible = infeasible.size
+                k = max_k_iter
 
-        if sum_inf < n_inf:
-            # n_infeasible reduced: update according to Kostreva's
-            k = k_iter
-            active_set[x_inf] = 0
-            active_set[y_inf] = 1
+            else:
+                # decrease the remaining Kostreva iterations
+                k -= 1
 
         else:
-            if k > 1:
-                # update according to Kostreva's
-                k -= 1
-                active_set[x_inf] = 0
-                active_set[y_inf] = 1
-            else:
-                # use Murty's to find x st. |x_inf & y_inf| < n_inf
-                r = np.nonzero(x_inf & y_inf)[0][-1]
+            # backtrack using only a single pivot (Murty's)
+            invert = infeasible.max()
 
-                # is r in x or y
-                in_x = x_inf[r]
+        # update active set
+        active_set[invert] = np.bitwise_not(active_set[invert])
 
-                # reset sets
-                x_inf = np.zeros(m, dtype=np.bool)
-                y_inf = np.zeros(m, dtype=np.bool)
-
-                if in_x:
-                    x_inf[r] = 1
-                else:
-                    y_inf[r] = 1
-
-        # update x
-        x = np.zeros(m)
-        x[active_set] = solve_lsqr(A[:, active_set], b)
-
+        # update complementary solution
+        x = solve_lsqr(A[:, ~active_set], b)
+        y = A[:, active_set].T.dot(A[:, ~active_set].dot(x) - b)
 
         # update iter count
         n_iter += 1
 
-    # return solution
-    return x
+    # return complementary solution
+    solution = np.zeros(m)
+    solution[active_set] = y
+    solution[~active_set] = x
+
+    return solution
 
 
 def lawson_hanson(A, b, tol=1e-8, max_iter=10000):
@@ -135,8 +135,11 @@ def lawson_hanson(A, b, tol=1e-8, max_iter=10000):
     x = np.zeros(m)
     active_set = np.ones(m, dtype=np.bool)
 
-    while n_iter < max_iter and active_set.any():
+    while active_set.any():
         # if active set emptied: ls solution == nnls solution
+
+        if n_iter >= max_iter:
+            warnings.warn('Max iterations reached: did not converge')
 
         # compute negative gradient
         w = A.T.dot(b - A.dot(x))

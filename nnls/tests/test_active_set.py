@@ -9,7 +9,7 @@ from nnls import block_pivoting, lawson_hanson
 
 def test_block_pivoting():
     # design matrix size (square)
-    n = 100
+    n = 5
 
     # ------------------------------------------------------------------------
     # test same output as scipy.nnls
