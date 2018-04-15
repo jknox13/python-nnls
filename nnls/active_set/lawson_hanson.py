@@ -11,7 +11,7 @@ import numpy as np
 from ..utils import solve_lsqr
 
 
-def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
+def lawson_hanson(A, b, tol=1e-3, max_iter=int(1e5)):
     """Lawson-Hanson algorithm for computing the nonnegative least squares solution.
 
     The Lawson-Hanson algorithm modifies the active set by one element in each
@@ -41,52 +41,47 @@ def lawson_hanson(A, b, tol=1e-6, maxiter=int(1e5)):
     [37]
     Cholesky updates : [47]
     """
-    n, m = A.shape
-
-    # compute gram matrix
-    #Q = A.T.dot(A)
-    #c = A.T.dot(b)
+    m = A.shape[1]
 
     # initialize
     n_iter = 0
     x = np.zeros(m)
-
-    # use boolean arrays
     active_set = np.ones(m, dtype=np.bool)
-    passive_set = np.zeros(m, dtype=np.bool)
 
-    while True:
+    while n_iter < max_iter and active_set.any():
+        # if active set emptied => ls solution == nnls solution
+
         # compute negative gradient
         w = A.T.dot(b - A.dot(x))
 
-        if not active_set.any() and n_iter >= maxiter and w[active_set].max() > tol:
-            # return solution
-            print('break')
+        if w[active_set].max() <= tol:
+            # satisfication of KKT condistion; return solution
             break
 
         # update sets with minimum index of gradient (max of -grad)
         j = np.argmax(w[active_set])
-        active_set[j] = 0
-        passive_set[j] = 1
+        active_idx, = active_set.nonzero()
+        active_set[active_idx[j]] = 0
 
         while True:
-            # make list so that we can index
-            passive_list = list(passive_set)
+            # get updated passive_set
+            passive_set = ~active_set
 
             # compute least squares solution A[:, P]y = b
             y = np.zeros(m)
-            y[passive_list] = solve_lsqr(A[:, passive_list], b)
+            y[passive_set] = solve_lsqr(A[:, passive_set], b)
 
-            if y.min() <= tol:
-                alpha = x[passive_list] / (x[passive_list] - y)
+            if y[passive_set].min() <= tol:
+                # at least one coefficient infeasible
+                # find optimal point along line segment xy to backtrack
+                q_set = (y <= tol) & passive_set
+                alpha = x[q_set] / (x[q_set] - y[q_set])
 
                 # update feasibility vector
-                x += alpha*(y - x)
+                x += alpha.min()*(y - x)
 
-                # move all zero indices of x from passive to active
-                nonzero_x = x.nonzero()[0]
-                active_set[nonzero_x] = 1
-                passive_set[nonzero_x] = 0
+                # move all zero* indices of x from passive to active
+                active_set[(np.abs(x) < tol) & passive_set] = 1
 
             else:
                 # update feasibility vector
