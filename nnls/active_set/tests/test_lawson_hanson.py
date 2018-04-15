@@ -2,7 +2,7 @@ import pytest
 import scipy.optimize as sopt
 import scipy.sparse as sp
 import numpy as np
-from numpy.testing import assert_allclose
+from numpy.testing import assert_array_almost_equal
 
 from nnls import lawson_hanson
 
@@ -20,7 +20,7 @@ def test_lawson_hanson():
     scipy_sol = sopt.nnls(A, b)[0]
     lh_sol = lawson_hanson(A, b)
 
-    assert_allclose(scipy_sol, lh_sol)
+    assert_array_almost_equal(scipy_sol, lh_sol)
 
     # ------------------------------------------------------------------------
     # test sparse
@@ -40,5 +40,5 @@ def test_lawson_hanson():
     assert sp.issparse(csr_A)
     assert sp.issparse(csc_A)
 
-    assert_allclose(csr_sol, dense_sol, 1e-5)
-    assert_allclose(csc_sol, dense_sol, 1e-5)
+    assert_array_almost_equal(csr_sol, dense_sol, 1e-5)
+    assert_array_almost_equal(csc_sol, dense_sol, 1e-5)
