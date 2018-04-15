@@ -11,7 +11,7 @@ import numpy as np
 from ..utils import solve_lsqr
 
 
-def lawson_hanson(A, b, tol=1e-3, max_iter=int(1e5)):
+def lawson_hanson(A, b, tol=1e-8, max_iter=10000):
     """Lawson-Hanson algorithm for computing the nonnegative least squares solution.
 
     The Lawson-Hanson algorithm modifies the active set by one element in each
@@ -39,7 +39,7 @@ def lawson_hanson(A, b, tol=1e-3, max_iter=int(1e5)):
     References
     ----------
     [37]
-    Cholesky updates : [47]
+    [47]
     """
     m = A.shape[1]
 
@@ -54,14 +54,13 @@ def lawson_hanson(A, b, tol=1e-3, max_iter=int(1e5)):
         # compute negative gradient
         w = A.T.dot(b - A.dot(x))
 
-        if w[active_set].max() <= tol:
+        if w[active_set].max() < tol:
             # satisfication of KKT condistion; return solution
             break
 
         # update sets with minimum index of gradient (max of -grad)
         j = np.argmax(w[active_set])
-        active_idx, = active_set.nonzero()
-        active_set[active_idx[j]] = 0
+        active_set[active_set.nonzero()[0][j]] = 0
 
         while True:
             # get updated passive_set
@@ -71,13 +70,13 @@ def lawson_hanson(A, b, tol=1e-3, max_iter=int(1e5)):
             y = np.zeros(m)
             y[passive_set] = solve_lsqr(A[:, passive_set], b)
 
-            if y[passive_set].min() <= tol:
-                # at least one coefficient infeasible
-                # find optimal point along line segment xy to backtrack
-                q_set = (y <= tol) & passive_set
-                alpha = x[q_set] / (x[q_set] - y[q_set])
+            infeasible = (y < tol) & passive_set
+            if infeasible.any():
 
-                # update feasibility vector
+                # find points along line segment xy to backtrack
+                alpha = x[infeasible] / (x[infeasible] - y[infeasible])
+
+                # backtrack feasibility vector
                 x += alpha.min()*(y - x)
 
                 # move all zero* indices of x from passive to active

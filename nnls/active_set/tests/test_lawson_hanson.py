@@ -1,5 +1,6 @@
 import pytest
 import scipy.optimize as sopt
+import scipy.sparse as sp
 import numpy as np
 from numpy.testing import assert_allclose
 
@@ -7,10 +8,12 @@ from nnls import lawson_hanson
 
 
 def test_lawson_hanson():
+    # design matrix size (square)
+    n = 100
+
     # ------------------------------------------------------------------------
     # test same output as scipy.nnls
     # A is the n  x n Hilbert matrix
-    n = 100
     A = 1. / (np.arange(1, n + 1) + np.arange(n)[:, np.newaxis])
     b = np.ones(n)
 
@@ -18,3 +21,24 @@ def test_lawson_hanson():
     lh_sol = lawson_hanson(A, b)
 
     assert_allclose(scipy_sol, lh_sol)
+
+    # ------------------------------------------------------------------------
+    # test sparse
+    rng = np.random.RandomState(10293)
+    A = rng.randn(n, n)
+    idx = rng.choice(np.arange(n**2), int(0.9*n**2), replace=False)
+    A[np.unravel_index(idx, (n,n))] = 0
+
+    csr_A = sp.csr_matrix(A.copy())
+    csc_A = sp.csc_matrix(A.copy())
+
+    dense_sol = lawson_hanson(A, b)
+    csr_sol = lawson_hanson(csr_A, b)
+    csc_sol = lawson_hanson(csc_A, b)
+
+    # check cs*_A still sparse
+    assert sp.issparse(csr_A)
+    assert sp.issparse(csc_A)
+
+    assert_allclose(csr_sol, dense_sol, 1e-5)
+    assert_allclose(csc_sol, dense_sol, 1e-5)
