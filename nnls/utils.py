@@ -21,7 +21,7 @@ def matrix_rank(A, tol=1e-12):
         raise ValueError("A must be 2 dimensional")
 
     if sp.issparse(A):
-        s = sp_linalg.svd(A, k=min(A.shape), return_singular_vectors=False)
+        s = sp_linalg.svds(A, k=min(A.shape)-1, return_singular_vectors=False)
     else:
         s = linalg.svd(A, compute_uv=False, overwrite_a=False)
 

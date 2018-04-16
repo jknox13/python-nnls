@@ -37,6 +37,12 @@ def block_pivoting(A, b, max_k_iter=5, tol=1e-8, max_iter=10000):
     [37]
     [57]
     """
+    def get_infeasible_set(x, y, active_set):
+        x_inf = (~active_set).nonzero()[0][x < tol]
+        y_inf = (active_set).nonzero()[0][y < tol]
+        return np.append(x_inf, y_inf)
+
+
     # method only valid for full rank design matrices
     if matrix_rank(A) < A.shape[1]:
         warnings.warn('A does not have full column rank! block_pivoting is '
@@ -48,16 +54,18 @@ def block_pivoting(A, b, max_k_iter=5, tol=1e-8, max_iter=10000):
     n_iter = 0
     k = max_k_iter
     n_infeasible = m + 1
+
     active_set = np.ones(m, dtype=np.bool)
-    x = np.zeros(m)
+    x = np.array([])  # passive set is initially empty
     y = -A.T.dot(b)
 
     while True:
         if n_iter >= max_iter:
             warnings.warn('Max iterations reached: did not converge')
+            break
 
         # get infeasible set
-        infeasible = np.append((x < 0).nonzero()[0], (y < 0).nonzero()[0])
+        infeasible = get_infeasible_set(x, y, active_set)
 
         if infeasible.size == 0:
             # solution feasible; return result
@@ -91,8 +99,7 @@ def block_pivoting(A, b, max_k_iter=5, tol=1e-8, max_iter=10000):
         n_iter += 1
 
     # return complementary solution
-    solution = np.zeros(m)
-    solution[active_set] = y
+    solution = np.zeros(m, dtype=x.dtype)
     solution[~active_set] = x
 
     return solution
@@ -140,6 +147,7 @@ def lawson_hanson(A, b, tol=1e-8, max_iter=10000):
 
         if n_iter >= max_iter:
             warnings.warn('Max iterations reached: did not converge')
+            break
 
         # compute negative gradient
         w = A.T.dot(b - A.dot(x))
